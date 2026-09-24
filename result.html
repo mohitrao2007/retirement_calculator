@@ -26,51 +26,61 @@
 
 <div class="container pb-5">
 
-  {% set fmt = '₹{:,.0f}'.format %}
-
   <div class="headline {{ 'short' if r.shortfall > 0 else 'ok' }} mb-4">
     <div class="row align-items-center">
       <div class="col-md-8">
         {% if r.shortfall > 0 %}
           <div class="fs-5 opacity-75">Additional sum required for investment (at retirement, age {{ r.retire_age }})</div>
-          <div class="display-6 fw-bold">{{ fmt(r.shortfall) }}</div>
+          <div class="display-6 fw-bold">{{ r.shortfall | inr }}</div>
           <div class="opacity-75 mt-1">Your current investments are projected to fall short of what you'll need.</div>
         {% else %}
           <div class="fs-5 opacity-75">Projected surplus (at retirement, age {{ r.retire_age }})</div>
-          <div class="display-6 fw-bold">{{ fmt(r.surplus) }}</div>
+          <div class="display-6 fw-bold">{{ r.surplus | inr }}</div>
           <div class="opacity-75 mt-1">Your current investments are projected to cover your retirement needs, with a surplus.</div>
         {% endif %}
       </div>
       <div class="col-md-4 text-md-end mt-3 mt-md-0">
         <div class="opacity-75">Total corpus required at retirement</div>
-        <div class="fs-3 fw-bold">{{ fmt(r.total_required_corpus) }}</div>
+        <div class="fs-3 fw-bold">{{ r.total_required_corpus | inr }}</div>
       </div>
     </div>
   </div>
 
   <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-      <div class="card p-3 text-center">
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card p-3 text-center h-100">
         <div class="stat-label">Years to Retirement</div>
         <div class="stat-value">{{ r.years_to_retirement }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="card p-3 text-center">
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card p-3 text-center h-100">
         <div class="stat-label">Years in Retirement</div>
         <div class="stat-value">{{ r.years_in_retirement }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="card p-3 text-center">
-        <div class="stat-label">1st Year Expense in Retirement</div>
-        <div class="stat-value">{{ fmt(r.expense_at_retirement) }}</div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card p-3 text-center h-100">
+        <div class="stat-label">Corpus Needed at Retirement (FD)</div>
+        <div class="stat-value">{{ r.required_living_corpus | inr }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="card p-3 text-center">
-        <div class="stat-label">Medical Reserve at Retirement</div>
-        <div class="stat-value">{{ fmt(r.medical_reserve_at_retirement) }}</div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card p-3 text-center h-100">
+        <div class="stat-label">FD Return, 1st Year of Retirement</div>
+        <div class="stat-value">{{ (r.yearly_breakdown[0].fd_interest_earned if r.yearly_breakdown else 0) | inr }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card p-3 text-center h-100">
+        <div class="stat-label">1st Year Expense in Retirement</div>
+        <div class="stat-value">{{ r.expense_at_retirement | inr }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="card p-3 text-center h-100">
+        <div class="stat-label">Medical Expense, 1st Year of Retirement</div>
+        <div class="stat-value">{{ (r.yearly_breakdown[0].medical_expense if r.yearly_breakdown else 0) | inr }}</div>
       </div>
     </div>
   </div>
@@ -81,13 +91,12 @@
         <div class="section-title">How the required corpus was built</div>
         <table class="table table-sm">
           <tbody>
-            <tr><td>Living-expense corpus (covers age {{ r.retire_age }}–{{ r.life_expectancy }}, net of passive income, FD @ {{ '%.1f'|format(r.fd_rate_pct) }}%)</td><td class="text-end">{{ fmt(r.required_living_corpus) }}</td></tr>
-            <tr><td>+ Medical emergency reserve at retirement (grown @ {{ '%.1f'|format(r.medical_growth_pct) }}%/yr)</td><td class="text-end">{{ fmt(r.medical_reserve_at_retirement) }}</td></tr>
-            <tr class="table-secondary fw-bold"><td>= Total corpus required at retirement</td><td class="text-end">{{ fmt(r.total_required_corpus) }}</td></tr>
-            <tr><td>− Projected future value of current investments</td><td class="text-end">{{ fmt(r.total_fv_investments) }}</td></tr>
+            <tr><td>Required corpus (covers living expenses + recurring medical expense, age {{ r.retire_age }}–{{ r.life_expectancy }}, net of passive income + FD interest, FD @ {{ '%.1f'|format(r.fd_rate_pct) }}%)</td><td class="text-end">{{ r.total_required_corpus | inr }}</td></tr>
+            <tr><td>&nbsp;&nbsp;· of which, medical expense (grows @ {{ '%.1f'|format(r.medical_growth_pct) }}%/yr, starts at {{ (r.yearly_breakdown[0].medical_expense if r.yearly_breakdown else 0) | inr }} in year 1)</td><td class="text-end text-muted">included above</td></tr>
+            <tr><td>− Projected future value of current investments</td><td class="text-end">{{ r.total_fv_investments | inr }}</td></tr>
             <tr class="{{ 'table-danger' if r.shortfall > 0 else 'table-success' }} fw-bold">
               <td>{{ '= Additional sum required for investment' if r.shortfall > 0 else '= Projected surplus' }}</td>
-              <td class="text-end">{{ fmt(r.shortfall if r.shortfall > 0 else r.surplus) }}</td>
+              <td class="text-end">{{ (r.shortfall if r.shortfall > 0 else r.surplus) | inr }}</td>
             </tr>
           </tbody>
         </table>
@@ -103,22 +112,48 @@
           {% for row in r.investment_breakdown %}
             <tr>
               <td>{{ row.label }}</td>
-              <td class="text-end">{{ fmt(row.current) }}</td>
+              <td class="text-end">{{ row.current | inr }}</td>
               <td class="text-end">{{ '%.1f'|format(row.growth_pct) }}%</td>
-              <td class="text-end">{{ fmt(row.future) }}</td>
+              <td class="text-end">{{ row.future | inr }}</td>
             </tr>
           {% endfor %}
             <tr class="table-secondary fw-bold">
               <td>Total</td><td></td><td></td>
-              <td class="text-end">{{ fmt(r.total_fv_investments) }}</td>
+              <td class="text-end">{{ r.total_fv_investments | inr }}</td>
             </tr>
           </tbody>
         </table>
         <div class="hint" style="font-size:0.8rem;color:#8a94a3;">
-          Current annual passive income of {{ fmt(r.passive_income) }} is projected to grow at {{ '%.1f'|format(r.passive_growth_pct) }}%/yr to
-          {{ fmt(r.passive_at_retirement) }} in your first year of retirement, and offsets that year's living expenses directly (shown in the chart below), rather than being compounded as a lump sum.
+          Current annual passive income of {{ r.passive_income | inr }} is projected to grow at {{ '%.1f'|format(r.passive_growth_pct) }}%/yr to
+          {{ r.passive_at_retirement | inr }} in your first year of retirement. Together with that year's FD interest, this is your post-retirement income, offsetting that year's living expenses directly (shown in the chart below), rather than being compounded as a lump sum.
         </div>
       </div>
+    </div>
+  </div>
+
+  <div class="card p-4 mb-4">
+    <div class="section-title">Investment growth from current age ({{ r.current_age }}) to retirement ({{ r.retire_age }})</div>
+    <canvas id="accumChart" height="90"></canvas>
+    <div class="hint mt-2" style="font-size:0.8rem;color:#8a94a3;">
+      Each investment bucket compounds every year starting today, at its own expected growth rate, up to your retirement age.
+    </div>
+    <div class="table-responsive mt-3">
+    <table class="table table-sm table-striped">
+      <thead><tr><th>Age</th><th class="text-end">Mutual Funds</th><th class="text-end">Shares</th><th class="text-end">Commodities</th><th class="text-end">LIC/NPS/EPF</th><th class="text-end">Other</th><th class="text-end">Total</th></tr></thead>
+      <tbody>
+      {% for row in r.accumulation_breakdown %}
+        <tr>
+          <td>{{ row.age }}</td>
+          <td class="text-end">{{ row.mf | inr }}</td>
+          <td class="text-end">{{ row.share | inr }}</td>
+          <td class="text-end">{{ row.commodity | inr }}</td>
+          <td class="text-end">{{ row.retirefund | inr }}</td>
+          <td class="text-end">{{ row.other | inr }}</td>
+          <td class="text-end fw-bold">{{ row.total | inr }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
     </div>
   </div>
 
@@ -126,7 +161,7 @@
     <div class="section-title">Required corpus over your retirement years (age {{ r.retire_age }} → {{ r.life_expectancy }})</div>
     <canvas id="corpusChart" height="90"></canvas>
     <div class="hint mt-2" style="font-size:0.8rem;color:#8a94a3;">
-      This assumes you retire with exactly the required living-expense corpus above, parked in an FD at {{ '%.1f'|format(r.fd_rate_pct) }}%, and draw down that year's inflated expenses net of passive income each year. By design it reaches ~₹0 at age {{ r.life_expectancy }}.
+      This assumes you retire with exactly the required living-expense corpus above, parked in an FD at {{ '%.1f'|format(r.fd_rate_pct) }}%, and draw down that year's inflated expenses net of passive income and FD interest each year. By design it reaches ~₹0 at age {{ r.life_expectancy }}.
     </div>
   </div>
 
@@ -134,15 +169,19 @@
     <div class="section-title">Year-by-year detail</div>
     <div class="table-responsive">
     <table class="table table-sm table-striped">
-      <thead><tr><th>Age</th><th class="text-end">Expense</th><th class="text-end">Passive Income</th><th class="text-end">Net Withdrawal</th><th class="text-end">Balance (end of year)</th></tr></thead>
+      <thead><tr><th>Age</th><th class="text-end">Living Expense</th><th class="text-end">Medical Expense</th><th class="text-end">Total Expense</th><th class="text-end">FD Interest Earned</th><th class="text-end">Passive Income</th><th class="text-end">Total Post-Retirement Income</th><th class="text-end">Net Withdrawal</th><th class="text-end">Balance (end of year)</th></tr></thead>
       <tbody>
       {% for row in r.yearly_breakdown %}
         <tr>
           <td>{{ row.age }}</td>
-          <td class="text-end">{{ fmt(row.expense) }}</td>
-          <td class="text-end">{{ fmt(row.passive_income) }}</td>
-          <td class="text-end">{{ fmt(row.net_withdrawal) }}</td>
-          <td class="text-end">{{ fmt(row.balance_end_of_year) }}</td>
+          <td class="text-end">{{ row.expense | inr }}</td>
+          <td class="text-end">{{ row.medical_expense | inr }}</td>
+          <td class="text-end">{{ row.total_expense | inr }}</td>
+          <td class="text-end">{{ row.fd_interest_earned | inr }}</td>
+          <td class="text-end">{{ row.passive_income | inr }}</td>
+          <td class="text-end">{{ row.total_post_retirement_income | inr }}</td>
+          <td class="text-end">{{ row.net_withdrawal | inr }}</td>
+          <td class="text-end">{{ row.balance_end_of_year | inr }}</td>
         </tr>
       {% endfor %}
       </tbody>
@@ -172,11 +211,43 @@ new Chart(document.getElementById('corpusChart'), {
   options: {
     scales: {
       x: { title: { display:true, text:'Age' } },
-      y: { title: { display:true, text:'Balance (₹)' }, ticks: { callback: v => '₹' + (v/100000).toFixed(1) + 'L' } }
+      y: { title: { display:true, text:'Balance (₹)' }, ticks: { callback: formatAxisRupees } }
     },
     plugins: { legend: { display:false } }
   }
 });
+
+const accumAges = {{ r.accumulation_breakdown | map(attribute='age') | list | tojson }};
+const accumTotals = {{ r.accumulation_breakdown | map(attribute='total') | list | tojson }};
+new Chart(document.getElementById('accumChart'), {
+  type: 'line',
+  data: {
+    labels: accumAges,
+    datasets: [{
+      label: 'Total investment value (₹)',
+      data: accumTotals,
+      borderColor: '#2e7d32',
+      backgroundColor: 'rgba(46,125,50,0.08)',
+      fill: true,
+      tension: 0.25,
+      pointRadius: 2
+    }]
+  },
+  options: {
+    scales: {
+      x: { title: { display:true, text:'Age' } },
+      y: { title: { display:true, text:'Value (₹)' }, ticks: { callback: formatAxisRupees } }
+    },
+    plugins: { legend: { display:false } }
+  }
+});
+
+function formatAxisRupees(v) {
+  const abs = Math.abs(v);
+  if (abs >= 1e7) return '₹' + (v / 1e7).toFixed(1) + ' Cr';
+  if (abs >= 1e5) return '₹' + (v / 1e5).toFixed(1) + ' L';
+  return '₹' + v;
+}
 </script>
 </body>
 </html>

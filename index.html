@@ -12,6 +12,8 @@
   .rate-input { max-width:110px; }
   .hint { font-size:0.8rem; color:#8a94a3; }
   .brand { font-weight:700; letter-spacing:.5px; }
+  .scenario-btn { border-radius:12px; }
+  .scenario-btn.active { box-shadow: inset 0 0 0 2px #2c3e50; }
 </style>
 </head>
 <body>
@@ -27,7 +29,33 @@
   </div>
   {% endif %}
 
+  <div class="card p-4 mb-4">
+    <div class="section-title">Pick a planning scenario</div>
+    <div class="hint mb-3">This just pre-fills the rates below with a ready-made set of assumptions - you can still tweak any of them afterwards.</div>
+    <div class="row g-2">
+      <div class="col-md-4">
+        <button type="button" class="btn btn-outline-danger w-100 scenario-btn" onclick="applyScenario('aggressive', this)">
+          <div class="fw-bold">Aggressive</div>
+          <div class="hint">Higher inflation (8%), lower growth assumptions - plans for a tougher scenario.</div>
+        </button>
+      </div>
+      <div class="col-md-4">
+        <button type="button" class="btn btn-outline-warning w-100 scenario-btn" onclick="applyScenario('moderate', this)">
+          <div class="fw-bold">Moderate</div>
+          <div class="hint">Balanced inflation (6%) and growth assumptions.</div>
+        </button>
+      </div>
+      <div class="col-md-4">
+        <button type="button" class="btn btn-outline-success w-100 scenario-btn" onclick="applyScenario('positive', this)">
+          <div class="fw-bold">I am Positive</div>
+          <div class="hint">Lower inflation (5%), higher growth assumptions - an optimistic scenario.</div>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <form method="POST" action="/calculate">
+  <input type="hidden" name="scenario" id="scenario-field" value="{{ form.scenario if form else '' }}">
   <div class="row g-4">
 
     <div class="col-lg-6">
@@ -58,7 +86,7 @@
           </div>
         </div>
 
-        <div class="section-title mt-4">2. Passive Income</div>
+        <div class="section-title mt-4">2. Income Post-Retirement</div>
         <div class="row g-3">
           <div class="col-8">
             <label class="form-label">Current Annual Passive Income (₹)</label>
@@ -68,19 +96,24 @@
             <label class="form-label">Growth %/yr</label>
             <input type="number" step="0.1" name="passive_growth" class="form-control rate-input" value="{{ form.passive_growth if form else 5.0 }}">
           </div>
+          <div class="col-8">
+            <label class="form-label">Post-retirement FD return %/yr</label>
+            <input type="number" step="0.1" name="fd_rate" class="form-control" value="{{ form.fd_rate if form else 6.0 }}">
+          </div>
+          <div class="hint">Your retirement corpus sits in an FD earning this rate; each year's interest plus your passive income is your post-retirement income, offsetting that year's expenses.</div>
         </div>
 
         <div class="section-title mt-4">3. Medical Emergency Reserve</div>
         <div class="row g-3">
           <div class="col-8">
-            <label class="form-label">Reserve Amount Today (₹)</label>
+            <label class="form-label">Medical Expense Today (₹/yr)</label>
             <input type="number" name="medical_reserve" class="form-control" value="{{ form.medical_reserve if form else 1000000 }}">
           </div>
           <div class="col-4">
             <label class="form-label">Growth %/yr</label>
             <input type="number" step="0.1" name="medical_growth" class="form-control rate-input" value="{{ form.medical_growth if form else 8.0 }}">
           </div>
-          <div class="hint">This amount is set aside from today's age, inflating every year until you retire, and added on top of your living-expense corpus.</div>
+          <div class="hint">Treated as a recurring annual expense: it grows from your current age, and keeps growing every year through retirement, added on top of your living expenses in the corpus calculation (not a separate lump sum).</div>
         </div>
       </div>
     </div>
@@ -88,6 +121,7 @@
     <div class="col-lg-6">
       <div class="card p-4 h-100">
         <div class="section-title">4. Current Investments &amp; Expected Growth</div>
+        <div class="hint mb-2">Each bucket is compounded at its own rate starting from your current age, all the way to your retirement age.</div>
 
         <div class="row g-3 align-items-end">
           <div class="col-8"><label class="form-label">Mutual Fund Investments (₹)</label>
@@ -118,13 +152,9 @@
 
         <div class="section-title mt-4">5. Economic Assumptions</div>
         <div class="row g-3">
-          <div class="col-6">
+          <div class="col-12">
             <label class="form-label">Inflation %/yr (living expenses)</label>
             <input type="number" step="0.1" name="inflation" class="form-control" value="{{ form.inflation if form else 8.0 }}">
-          </div>
-          <div class="col-6">
-            <label class="form-label">Post-retirement FD return %/yr</label>
-            <input type="number" step="0.1" name="fd_rate" class="form-control" value="{{ form.fd_rate if form else 6.0 }}">
           </div>
         </div>
         <div class="hint mt-2">Defaults match the brief: 8% inflation, 10% mutual-fund growth, 5% passive-income growth, 6% FD return in retirement, life expectancy 80. All are editable.</div>
@@ -138,5 +168,43 @@
   </div>
   </form>
 </div>
+
+<script>
+const SCENARIOS = {
+  aggressive: { fd_rate: 5.5, passive_growth: 5, inflation: 8, medical_growth: 8,
+                mf_growth: 10, share_growth: 5, commodity_growth: 8,
+                retirefund_growth: 8, other_growth: 8 },
+  moderate:   { fd_rate: 6,   passive_growth: 6, inflation: 6, medical_growth: 5,
+                mf_growth: 12, share_growth: 6, commodity_growth: 8,
+                retirefund_growth: 8, other_growth: 8 },
+  positive:   { fd_rate: 7,   passive_growth: 7, inflation: 5, medical_growth: 5,
+                mf_growth: 15, share_growth: 7, commodity_growth: 8,
+                retirefund_growth: 8, other_growth: 8 },
+};
+
+function applyScenario(name, btn) {
+  const preset = SCENARIOS[name];
+  if (!preset) return;
+  Object.keys(preset).forEach(function (field) {
+    const el = document.querySelector('[name="' + field + '"]');
+    if (el) el.value = preset[field];
+  });
+  document.getElementById('scenario-field').value = name;
+  document.querySelectorAll('.scenario-btn').forEach(function (b) {
+    b.classList.remove('active');
+  });
+  if (btn) btn.classList.add('active');
+}
+
+// Re-highlight the previously chosen scenario, if any, when the form is repopulated.
+(function () {
+  const chosen = document.getElementById('scenario-field').value;
+  if (chosen) {
+    const idx = { aggressive: 0, moderate: 1, positive: 2 }[chosen];
+    const btns = document.querySelectorAll('.scenario-btn');
+    if (idx !== undefined && btns[idx]) btns[idx].classList.add('active');
+  }
+})();
+</script>
 </body>
 </html>
