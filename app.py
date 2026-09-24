@@ -4,14 +4,20 @@ Retirement Calculator (Flask)
 Models:
   - Accumulation phase (current age -> retirement age): each existing investment
     bucket (Mutual Funds, Shares, Commodities, LIC/NPS/EPF, Other) compounds
-    every year at its own expected growth rate up to retirement age.
+    every year at its own expected growth rate up to retirement age. Mutual
+    Funds and Other Investments can also have a recurring monthly
+    contribution (a Monthly SIP, and Other Monthly Savings respectively),
+    which compounds at that same bucket's growth rate.
   - Decumulation phase (retirement age -> life expectancy): the required corpus
     is assumed to sit in a Fixed Deposit earning a fixed rate. Every year you
     withdraw that year's living expenses (which keep inflating every year, in
     retirement too) net of that year's passive income (rent/dividends, which
-    also keeps growing every year). The required corpus is the amount needed
-    today (at retirement) so that this stream of withdrawals exactly drains
-    the FD to zero by the target life expectancy.
+    also keeps growing every year) and pension/annuity income. Pension income
+    exists only from retirement onward - it isn't projected forward before
+    retirement, but grows every year in retirement at the same rate as
+    passive income. The required corpus is the amount needed today (at
+    retirement) so that this stream of withdrawals exactly drains the FD to
+    zero by the target life expectancy.
   - The medical emergency reserve (default INR 10,00,000 in today's money) is
     treated as a recurring annual expense, not a separate lump sum: it grows
     at its own rate from the current age, and continues growing every year
@@ -97,6 +103,25 @@ def fv(principal, rate, years):
     return principal * ((1 + rate) ** years)
 
 
+def fv_monthly(monthly_amount, annual_rate, years):
+    """Future value of a monthly contribution (e.g. an SIP), invested at the
+    start of each month, over the given number of years.
+
+    The stated rate is an *annual effective* rate (same convention used
+    everywhere else in this app), so it's converted to the equivalent
+    monthly rate rather than just divided by 12 - that keeps a 10% "growth"
+    input compounding to exactly 10% a year, matching the lump-sum fv()
+    calculations elsewhere.
+    """
+    months = int(round(years * 12))
+    if monthly_amount <= 0 or months <= 0:
+        return 0.0
+    monthly_rate = (1 + annual_rate) ** (1 / 12) - 1
+    if monthly_rate == 0:
+        return monthly_amount * months
+    return monthly_amount * (((1 + monthly_rate) ** months - 1) / monthly_rate) * (1 + monthly_rate)
+
+
 def calculate_retirement(data):
     errors = []
 
@@ -117,6 +142,7 @@ def calculate_retirement(data):
 
     mf_value = to_float(data, "mf_value", 0)
     mf_growth = to_float(data, "mf_growth", 10.0) / 100
+    sip_monthly = to_float(data, "sip_monthly", 0)  # grows @ mf_growth
 
     share_value = to_float(data, "share_value", 0)
     share_growth = to_float(data, "share_growth", 12.0) / 100
@@ -129,9 +155,13 @@ def calculate_retirement(data):
 
     other_value = to_float(data, "other_value", 0)
     other_growth = to_float(data, "other_growth", 8.0) / 100
+    other_monthly = to_float(data, "other_monthly", 0)  # grows @ other_growth
 
     passive_income = to_float(data, "passive_income", 0)
     passive_growth = to_float(data, "passive_growth", 5.0) / 100
+    # Pension/annuity-style income that starts only at retirement (nothing to
+    # project forward before then); grows at the same rate as passive income.
+    pension_annual = to_float(data, "pension_annual", 0)
 
     inflation = to_float(data, "inflation", 8.0) / 100
     fd_rate = to_float(data, "fd_rate", 6.0) / 100
@@ -143,20 +173,23 @@ def calculate_retirement(data):
     years_in_retirement = life_expectancy - retire_age
 
     # ---- Accumulation phase: grow each existing investment bucket to retirement ----
-    fv_mf = fv(mf_value, mf_growth, years_to_retirement)
+    # Mutual Funds and Other Investments also pick up the future value of
+    # their recurring monthly contribution (SIP / other monthly savings),
+    # compounding at that same bucket's growth rate.
+    fv_mf = fv(mf_value, mf_growth, years_to_retirement) + fv_monthly(sip_monthly, mf_growth, years_to_retirement)
     fv_share = fv(share_value, share_growth, years_to_retirement)
     fv_commodity = fv(commodity_value, commodity_growth, years_to_retirement)
     fv_retirefund = fv(retirefund_value, retirefund_growth, years_to_retirement)
-    fv_other = fv(other_value, other_growth, years_to_retirement)
+    fv_other = fv(other_value, other_growth, years_to_retirement) + fv_monthly(other_monthly, other_growth, years_to_retirement)
 
     total_fv_investments = fv_mf + fv_share + fv_commodity + fv_retirefund + fv_other
 
     investment_breakdown = [
-        {"label": "Mutual Funds", "current": mf_value, "growth_pct": mf_growth * 100, "future": fv_mf},
-        {"label": "Shares", "current": share_value, "growth_pct": share_growth * 100, "future": fv_share},
-        {"label": "Commodities", "current": commodity_value, "growth_pct": commodity_growth * 100, "future": fv_commodity},
-        {"label": "LIC / NPS / EPF", "current": retirefund_value, "growth_pct": retirefund_growth * 100, "future": fv_retirefund},
-        {"label": "Other Investments", "current": other_value, "growth_pct": other_growth * 100, "future": fv_other},
+        {"label": "Mutual Funds", "current": mf_value, "growth_pct": mf_growth * 100, "monthly": sip_monthly, "future": fv_mf},
+        {"label": "Shares", "current": share_value, "growth_pct": share_growth * 100, "monthly": 0, "future": fv_share},
+        {"label": "Commodities", "current": commodity_value, "growth_pct": commodity_growth * 100, "monthly": 0, "future": fv_commodity},
+        {"label": "LIC / NPS / EPF", "current": retirefund_value, "growth_pct": retirefund_growth * 100, "monthly": 0, "future": fv_retirefund},
+        {"label": "Other Investments", "current": other_value, "growth_pct": other_growth * 100, "monthly": other_monthly, "future": fv_other},
     ]
 
     # ---- Accumulation phase, year by year from current age itself ----
@@ -165,11 +198,11 @@ def calculate_retirement(data):
     # straight from today's value to a single retirement-age total).
     accumulation_breakdown = []
     for yr in range(0, years_to_retirement + 1):
-        yr_mf = fv(mf_value, mf_growth, yr)
+        yr_mf = fv(mf_value, mf_growth, yr) + fv_monthly(sip_monthly, mf_growth, yr)
         yr_share = fv(share_value, share_growth, yr)
         yr_commodity = fv(commodity_value, commodity_growth, yr)
         yr_retirefund = fv(retirefund_value, retirefund_growth, yr)
-        yr_other = fv(other_value, other_growth, yr)
+        yr_other = fv(other_value, other_growth, yr) + fv_monthly(other_monthly, other_growth, yr)
         accumulation_breakdown.append({
             "year": yr,
             "age": current_age + yr,
@@ -199,9 +232,14 @@ def calculate_retirement(data):
         medical_t = fv(medical_at_retirement, medical_growth, t - 1)
         total_expense_t = expense_t + medical_t
         passive_t = fv(passive_at_retirement, passive_growth, t - 1)
-        net_withdrawal = total_expense_t - passive_t
+        # Pension/annuity income exists only from retirement onward, so there's
+        # no pre-retirement leg to project - it simply grows year to year
+        # within retirement, starting from the stated amount in year 1.
+        pension_t = fv(pension_annual, passive_growth, t - 1)
+        total_passive_income_t = passive_t + pension_t
+        net_withdrawal = total_expense_t - total_passive_income_t
         if net_withdrawal < 0:
-            net_withdrawal = 0.0  # surplus passive income isn't withdrawn/added back in this model
+            net_withdrawal = 0.0  # surplus income isn't withdrawn/added back in this model
         discounted = net_withdrawal / ((1 + fd_rate) ** (t - 1))
         required_living_corpus += discounted
 
@@ -212,6 +250,8 @@ def calculate_retirement(data):
             "medical_expense": medical_t,
             "total_expense": total_expense_t,
             "passive_income": passive_t,
+            "pension_income": pension_t,
+            "total_passive_income": total_passive_income_t,
             "net_withdrawal": net_withdrawal,
         })
 
@@ -225,7 +265,7 @@ def calculate_retirement(data):
         row["balance_after_withdrawal"] = balance
         fd_interest = balance * fd_rate
         row["fd_interest_earned"] = fd_interest
-        row["total_post_retirement_income"] = fd_interest + row["passive_income"]
+        row["total_post_retirement_income"] = fd_interest + row["total_passive_income"]
         balance += fd_interest
         row["balance_end_of_year"] = balance
 
@@ -252,6 +292,7 @@ def calculate_retirement(data):
         "passive_income": passive_income,
         "passive_growth_pct": passive_growth * 100,
         "passive_at_retirement": passive_at_retirement,
+        "pension_annual": pension_annual,
 
         "inflation_pct": inflation * 100,
         "fd_rate_pct": fd_rate * 100,
