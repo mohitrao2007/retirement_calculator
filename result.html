@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Your Retirement Plan</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  body { background:#f5f7fa; }
+  .card { border:none; border-radius:14px; box-shadow:0 2px 12px rgba(0,0,0,0.06); }
+  .stat-label { font-size:0.82rem; color:#8a94a3; text-transform:uppercase; letter-spacing:.4px; }
+  .stat-value { font-size:1.6rem; font-weight:700; color:#2c3e50; }
+  .headline { border-radius:16px; padding:28px; color:#fff; }
+  .headline.short { background:linear-gradient(135deg,#e74c3c,#c0392b); }
+  .headline.ok { background:linear-gradient(135deg,#27ae60,#1e8449); }
+  table.table thead { background:#2c3e50; color:#fff; }
+  .section-title { font-weight:600; color:#2c3e50; margin-bottom:14px; }
+</style>
+</head>
+<body>
+<nav class="navbar navbar-dark bg-dark mb-4">
+  <div class="container"><span class="navbar-brand fw-bold">🧓 Retirement Corpus Calculator</span>
+  <a href="/" class="btn btn-outline-light btn-sm">← Edit inputs</a></div>
+</nav>
+
+<div class="container pb-5">
+
+  {% set fmt = '₹{:,.0f}'.format %}
+
+  <div class="headline {{ 'short' if r.shortfall > 0 else 'ok' }} mb-4">
+    <div class="row align-items-center">
+      <div class="col-md-8">
+        {% if r.shortfall > 0 %}
+          <div class="fs-5 opacity-75">Additional sum required for investment (at retirement, age {{ r.retire_age }})</div>
+          <div class="display-6 fw-bold">{{ fmt(r.shortfall) }}</div>
+          <div class="opacity-75 mt-1">Your current investments are projected to fall short of what you'll need.</div>
+        {% else %}
+          <div class="fs-5 opacity-75">Projected surplus (at retirement, age {{ r.retire_age }})</div>
+          <div class="display-6 fw-bold">{{ fmt(r.surplus) }}</div>
+          <div class="opacity-75 mt-1">Your current investments are projected to cover your retirement needs, with a surplus.</div>
+        {% endif %}
+      </div>
+      <div class="col-md-4 text-md-end mt-3 mt-md-0">
+        <div class="opacity-75">Total corpus required at retirement</div>
+        <div class="fs-3 fw-bold">{{ fmt(r.total_required_corpus) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card p-3 text-center">
+        <div class="stat-label">Years to Retirement</div>
+        <div class="stat-value">{{ r.years_to_retirement }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card p-3 text-center">
+        <div class="stat-label">Years in Retirement</div>
+        <div class="stat-value">{{ r.years_in_retirement }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card p-3 text-center">
+        <div class="stat-label">1st Year Expense in Retirement</div>
+        <div class="stat-value">{{ fmt(r.expense_at_retirement) }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card p-3 text-center">
+        <div class="stat-label">Medical Reserve at Retirement</div>
+        <div class="stat-value">{{ fmt(r.medical_reserve_at_retirement) }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <div class="section-title">How the required corpus was built</div>
+        <table class="table table-sm">
+          <tbody>
+            <tr><td>Living-expense corpus (covers age {{ r.retire_age }}–{{ r.life_expectancy }}, net of passive income, FD @ {{ '%.1f'|format(r.fd_rate_pct) }}%)</td><td class="text-end">{{ fmt(r.required_living_corpus) }}</td></tr>
+            <tr><td>+ Medical emergency reserve at retirement (grown @ {{ '%.1f'|format(r.medical_growth_pct) }}%/yr)</td><td class="text-end">{{ fmt(r.medical_reserve_at_retirement) }}</td></tr>
+            <tr class="table-secondary fw-bold"><td>= Total corpus required at retirement</td><td class="text-end">{{ fmt(r.total_required_corpus) }}</td></tr>
+            <tr><td>− Projected future value of current investments</td><td class="text-end">{{ fmt(r.total_fv_investments) }}</td></tr>
+            <tr class="{{ 'table-danger' if r.shortfall > 0 else 'table-success' }} fw-bold">
+              <td>{{ '= Additional sum required for investment' if r.shortfall > 0 else '= Projected surplus' }}</td>
+              <td class="text-end">{{ fmt(r.shortfall if r.shortfall > 0 else r.surplus) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <div class="section-title">Where your investments will be, at retirement</div>
+        <table class="table table-sm">
+          <thead><tr><th>Bucket</th><th class="text-end">Today</th><th class="text-end">Growth</th><th class="text-end">At Retirement</th></tr></thead>
+          <tbody>
+          {% for row in r.investment_breakdown %}
+            <tr>
+              <td>{{ row.label }}</td>
+              <td class="text-end">{{ fmt(row.current) }}</td>
+              <td class="text-end">{{ '%.1f'|format(row.growth_pct) }}%</td>
+              <td class="text-end">{{ fmt(row.future) }}</td>
+            </tr>
+          {% endfor %}
+            <tr class="table-secondary fw-bold">
+              <td>Total</td><td></td><td></td>
+              <td class="text-end">{{ fmt(r.total_fv_investments) }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="hint" style="font-size:0.8rem;color:#8a94a3;">
+          Current annual passive income of {{ fmt(r.passive_income) }} is projected to grow at {{ '%.1f'|format(r.passive_growth_pct) }}%/yr to
+          {{ fmt(r.passive_at_retirement) }} in your first year of retirement, and offsets that year's living expenses directly (shown in the chart below), rather than being compounded as a lump sum.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card p-4 mb-4">
+    <div class="section-title">Required corpus over your retirement years (age {{ r.retire_age }} → {{ r.life_expectancy }})</div>
+    <canvas id="corpusChart" height="90"></canvas>
+    <div class="hint mt-2" style="font-size:0.8rem;color:#8a94a3;">
+      This assumes you retire with exactly the required living-expense corpus above, parked in an FD at {{ '%.1f'|format(r.fd_rate_pct) }}%, and draw down that year's inflated expenses net of passive income each year. By design it reaches ~₹0 at age {{ r.life_expectancy }}.
+    </div>
+  </div>
+
+  <div class="card p-4 mb-5">
+    <div class="section-title">Year-by-year detail</div>
+    <div class="table-responsive">
+    <table class="table table-sm table-striped">
+      <thead><tr><th>Age</th><th class="text-end">Expense</th><th class="text-end">Passive Income</th><th class="text-end">Net Withdrawal</th><th class="text-end">Balance (end of year)</th></tr></thead>
+      <tbody>
+      {% for row in r.yearly_breakdown %}
+        <tr>
+          <td>{{ row.age }}</td>
+          <td class="text-end">{{ fmt(row.expense) }}</td>
+          <td class="text-end">{{ fmt(row.passive_income) }}</td>
+          <td class="text-end">{{ fmt(row.net_withdrawal) }}</td>
+          <td class="text-end">{{ fmt(row.balance_end_of_year) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ages = {{ r.yearly_breakdown | map(attribute='age') | list | tojson }};
+const balances = {{ r.yearly_breakdown | map(attribute='balance_end_of_year') | list | tojson }};
+new Chart(document.getElementById('corpusChart'), {
+  type: 'line',
+  data: {
+    labels: ages,
+    datasets: [{
+      label: 'Corpus balance (₹)',
+      data: balances,
+      borderColor: '#2c3e50',
+      backgroundColor: 'rgba(44,62,80,0.08)',
+      fill: true,
+      tension: 0.25,
+      pointRadius: 2
+    }]
+  },
+  options: {
+    scales: {
+      x: { title: { display:true, text:'Age' } },
+      y: { title: { display:true, text:'Balance (₹)' }, ticks: { callback: v => '₹' + (v/100000).toFixed(1) + 'L' } }
+    },
+    plugins: { legend: { display:false } }
+  }
+});
+</script>
+</body>
+</html>
