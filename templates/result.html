@@ -107,25 +107,28 @@
       <div class="card p-4 h-100">
         <div class="section-title">Where your investments will be, at retirement</div>
         <table class="table table-sm">
-          <thead><tr><th>Bucket</th><th class="text-end">Today</th><th class="text-end">Growth</th><th class="text-end">At Retirement</th></tr></thead>
+          <thead><tr><th>Bucket</th><th class="text-end">Today</th><th class="text-end">Monthly</th><th class="text-end">Growth</th><th class="text-end">At Retirement</th></tr></thead>
           <tbody>
           {% for row in r.investment_breakdown %}
             <tr>
               <td>{{ row.label }}</td>
               <td class="text-end">{{ row.current | inr }}</td>
+              <td class="text-end">{{ (row.monthly | inr) if row.monthly else '–' }}</td>
               <td class="text-end">{{ '%.1f'|format(row.growth_pct) }}%</td>
               <td class="text-end">{{ row.future | inr }}</td>
             </tr>
           {% endfor %}
             <tr class="table-secondary fw-bold">
-              <td>Total</td><td></td><td></td>
+              <td>Total</td><td></td><td></td><td></td>
               <td class="text-end">{{ r.total_fv_investments | inr }}</td>
             </tr>
           </tbody>
         </table>
         <div class="hint" style="font-size:0.8rem;color:#8a94a3;">
           Current annual passive income of {{ r.passive_income | inr }} is projected to grow at {{ '%.1f'|format(r.passive_growth_pct) }}%/yr to
-          {{ r.passive_at_retirement | inr }} in your first year of retirement. Together with that year's FD interest, this is your post-retirement income, offsetting that year's living expenses directly (shown in the chart below), rather than being compounded as a lump sum.
+          {{ r.passive_at_retirement | inr }} in your first year of retirement.
+          {% if r.pension_annual %}Plus a pension/other retirement income of {{ r.pension_annual | inr }}, starting fresh in your first year of retirement and growing at the same rate.{% endif %}
+          Together with that year's FD interest, these make up your post-retirement income, offsetting that year's living expenses directly (shown in the chart below), rather than being compounded as a lump sum.
         </div>
       </div>
     </div>
@@ -169,7 +172,7 @@
     <div class="section-title">Year-by-year detail</div>
     <div class="table-responsive">
     <table class="table table-sm table-striped">
-      <thead><tr><th>Age</th><th class="text-end">Living Expense</th><th class="text-end">Medical Expense</th><th class="text-end">Total Expense</th><th class="text-end">FD Interest Earned</th><th class="text-end">Passive Income</th><th class="text-end">Total Post-Retirement Income</th><th class="text-end">Net Withdrawal</th><th class="text-end">Balance (end of year)</th></tr></thead>
+      <thead><tr><th>Age</th><th class="text-end">Living Expense</th><th class="text-end">Medical Expense</th><th class="text-end">Total Expense</th><th class="text-end">FD Interest Earned</th><th class="text-end">Passive Income</th><th class="text-end">Pension Income</th><th class="text-end">Total Post-Retirement Income</th><th class="text-end">Net Withdrawal</th><th class="text-end">Balance (end of year)</th></tr></thead>
       <tbody>
       {% for row in r.yearly_breakdown %}
         <tr>
@@ -179,6 +182,7 @@
           <td class="text-end">{{ row.total_expense | inr }}</td>
           <td class="text-end">{{ row.fd_interest_earned | inr }}</td>
           <td class="text-end">{{ row.passive_income | inr }}</td>
+          <td class="text-end">{{ row.pension_income | inr }}</td>
           <td class="text-end">{{ row.total_post_retirement_income | inr }}</td>
           <td class="text-end">{{ row.net_withdrawal | inr }}</td>
           <td class="text-end">{{ row.balance_end_of_year | inr }}</td>
