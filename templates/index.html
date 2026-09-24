@@ -84,6 +84,11 @@
             <label class="form-label">Extra Annual Expenses (₹)</label>
             <input type="number" name="extra_annual_expenses" class="form-control" value="{{ form.extra_annual_expenses if form else 0 }}" placeholder="Medical, vacation, insurance premiums, etc.">
           </div>
+          <div class="col-12">
+            <label class="form-label">Current Monthly Income (₹)</label>
+            <input type="number" name="monthly_income" class="form-control" value="{{ form.monthly_income if form else 0 }}" placeholder="e.g. 150000">
+          </div>
+          <div class="hint">Optional - used only on the results page to check whether whatever's left of your income after EMI and your current savings could realistically close any shortfall.</div>
         </div>
 
         <div class="section-title mt-4">2. Income Post-Retirement</div>
@@ -102,17 +107,21 @@
           </div>
           <div class="hint mb-2">Your retirement corpus sits in an FD earning this rate; each year's interest plus your passive income is your post-retirement income, offsetting that year's expenses.</div>
 
-          <div class="col-12">
-            <label class="form-label">Pension / Other Retirement Income (₹/yr)</label>
+          <div class="col-8">
+            <label class="form-label">Pension, Rent & Other Retirement Income (₹/yr)</label>
             <input type="number" name="pension_annual" class="form-control" value="{{ form.pension_annual if form else 0 }}" placeholder="e.g. a pension that starts only when you retire">
           </div>
-          <div class="hint">Unlike passive income above, this doesn't exist yet - it starts only in your first year of retirement, then grows every year after that at the same "Growth %/yr" rate set for passive income.</div>
+          <div class="col-4">
+            <label class="form-label">Growth %/yr</label>
+            <input type="number" step="0.1" name="pension_growth" class="form-control rate-input" value="{{ form.pension_growth if form else 5.0 }}">
+          </div>
+          <div class="hint">Unlike passive income above, this doesn't exist yet - it starts only in your first year of retirement (not before), then grows every year after that at its own rate above.</div>
         </div>
 
         <div class="section-title mt-4">3. Medical Emergency Reserve</div>
         <div class="row g-3">
           <div class="col-8">
-            <label class="form-label">Medical Expense Today (₹/yr)</label>
+            <label class="form-label">Medical Expense Estimated at Current Value (₹/yr)</label>
             <input type="number" name="medical_reserve" class="form-control" value="{{ form.medical_reserve if form else 1000000 }}">
           </div>
           <div class="col-4">
@@ -138,7 +147,7 @@
           <div class="col-8"><label class="form-label">Monthly SIP (₹/mo)</label>
             <input type="number" name="sip_monthly" class="form-control" value="{{ form.sip_monthly if form else 0 }}"></div>
           <div class="col-4"><label class="form-label">Growth %/yr</label>
-            <input type="text" class="form-control rate-input" value="same as MF" disabled></div>
+            <input type="number" step="0.1" name="sip_growth" class="form-control rate-input" value="{{ form.sip_growth if form else 10.0 }}"></div>
 
           <div class="col-8"><label class="form-label">Share Investments (₹)</label>
             <input type="number" name="share_value" class="form-control" value="{{ form.share_value if form else 0 }}"></div>
@@ -150,7 +159,7 @@
           <div class="col-4"><label class="form-label">Growth %/yr</label>
             <input type="number" step="0.1" name="commodity_growth" class="form-control rate-input" value="{{ form.commodity_growth if form else 8.0 }}"></div>
 
-          <div class="col-8"><label class="form-label">LIC / NPS / EPF (₹)</label>
+          <div class="col-8"><label class="form-label">LIC / NPS / EPF Current Corpus(₹)</label>
             <input type="number" name="retirefund_value" class="form-control" value="{{ form.retirefund_value if form else 0 }}"></div>
           <div class="col-4"><label class="form-label">Growth %/yr</label>
             <input type="number" step="0.1" name="retirefund_growth" class="form-control rate-input" value="{{ form.retirefund_growth if form else 8.0 }}"></div>
@@ -160,12 +169,20 @@
           <div class="col-4"><label class="form-label">Growth %/yr</label>
             <input type="number" step="0.1" name="other_growth" class="form-control rate-input" value="{{ form.other_growth if form else 8.0 }}"></div>
 
-          <div class="col-8"><label class="form-label">Other Monthly Savings (₹/mo)</label>
+          <div class="col-8"><label class="form-label">Other Monthly Savings (PF, Savings, FD etc) (₹/mo)</label>
             <input type="number" name="other_monthly" class="form-control" value="{{ form.other_monthly if form else 0 }}"></div>
           <div class="col-4"><label class="form-label">Growth %/yr</label>
-            <input type="text" class="form-control rate-input" value="same as Other" disabled></div>
+            <input type="number" step="0.1" name="other_monthly_growth" class="form-control rate-input" value="{{ form.other_monthly_growth if form else 8.0 }}"></div>
         </div>
-        <div class="hint mt-1">Monthly SIP and Other Monthly Savings compound at their bucket's growth rate above, on top of whatever lump sum you already hold in that bucket.</div>
+        <div class="hint mt-1">Monthly SIP and Other Monthly Savings start now (your current age) and compound every month to retirement, at their own rate above (defaults to match the bucket next to it, but can be changed independently) - on top of whatever lump sum you already hold in that bucket.</div>
+
+        <div class="row g-3 mt-1">
+          <div class="col-8">
+            <label class="form-label">Monthly EMI (₹/mo)</label>
+            <input type="number" name="monthly_emi" class="form-control" value="{{ form.monthly_emi if form else 0 }}" placeholder="Loan repayments">
+          </div>
+          <div class="hint">Deducted from your combined Monthly SIP + Other Monthly Savings <em>before</em> growth is applied (split proportionally between the two) - so it reduces what actually gets invested each month, not just the end result.</div>
+        </div>
 
         <div class="section-title mt-4">5. Economic Assumptions</div>
         <div class="row g-3">
@@ -175,6 +192,23 @@
           </div>
         </div>
         <div class="hint mt-2">Defaults match the brief: 8% inflation, 10% mutual-fund growth, 5% passive-income growth, 6% FD return in retirement, life expectancy 80. All are editable.</div>
+      </div>
+    </div>
+
+    <div class="col-12">
+      <div class="card p-4">
+        <div class="section-title">6. Immovable Assets (Not Counted Toward Corpus)</div>
+        <div class="row g-3 align-items-end">
+          <div class="col-md-4">
+            <label class="form-label">Real Estate Investment (₹)</label>
+            <input type="number" name="real_estate_value" class="form-control" value="{{ form.real_estate_value if form else 0 }}">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label">Growth %/yr</label>
+            <input type="number" step="0.1" name="real_estate_growth" class="form-control rate-input" value="{{ form.real_estate_growth if form else 8.0 }}">
+          </div>
+        </div>
+        <div class="hint mt-2">Defaults to the same growth rate as Commodities, but shown separately, deliberately excluded from your investment total - real estate isn't something you'd typically liquidate to fund retirement income, so it never offsets your required corpus or affects your shortfall/surplus. It's reported on the results page purely as an informational figure.</div>
       </div>
     </div>
 
@@ -188,15 +222,15 @@
 
 <script>
 const SCENARIOS = {
-  aggressive: { fd_rate: 5.5, passive_growth: 5, inflation: 8, medical_growth: 8,
-                mf_growth: 10, share_growth: 5, commodity_growth: 8,
-                retirefund_growth: 8, other_growth: 8 },
-  moderate:   { fd_rate: 6,   passive_growth: 6, inflation: 6, medical_growth: 5,
-                mf_growth: 12, share_growth: 6, commodity_growth: 8,
-                retirefund_growth: 8, other_growth: 8 },
-  positive:   { fd_rate: 7,   passive_growth: 7, inflation: 5, medical_growth: 5,
-                mf_growth: 15, share_growth: 7, commodity_growth: 8,
-                retirefund_growth: 8, other_growth: 8 },
+  aggressive: { fd_rate: 5.5, passive_growth: 5, pension_growth: 5, inflation: 8, medical_growth: 8,
+                mf_growth: 10, sip_growth: 10, share_growth: 5, commodity_growth: 8, real_estate_growth: 8,
+                retirefund_growth: 8, other_growth: 8, other_monthly_growth: 8 },
+  moderate:   { fd_rate: 6,   passive_growth: 6, pension_growth: 6, inflation: 6, medical_growth: 5,
+                mf_growth: 12, sip_growth: 12, share_growth: 6, commodity_growth: 8, real_estate_growth: 8,
+                retirefund_growth: 8, other_growth: 8, other_monthly_growth: 8 },
+  positive:   { fd_rate: 7,   passive_growth: 7, pension_growth: 7, inflation: 5, medical_growth: 5,
+                mf_growth: 15, sip_growth: 15, share_growth: 7, commodity_growth: 8, real_estate_growth: 8,
+                retirefund_growth: 8, other_growth: 8, other_monthly_growth: 8 },
 };
 
 function applyScenario(name, btn) {

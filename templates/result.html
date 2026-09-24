@@ -100,6 +100,11 @@
             </tr>
           </tbody>
         </table>
+        {% if r.monthly_emi %}
+        <div class="hint mt-2" style="font-size:0.8rem;color:#8a94a3;">
+          Monthly EMI of {{ r.monthly_emi | inr }} reduces your combined Monthly SIP + Other Monthly Savings from {{ r.gross_total_monthly | inr }}/mo to {{ r.net_total_monthly | inr }}/mo before that money starts compounding.
+        </div>
+        {% endif %}
       </div>
     </div>
 
@@ -107,19 +112,20 @@
       <div class="card p-4 h-100">
         <div class="section-title">Where your investments will be, at retirement</div>
         <table class="table table-sm">
-          <thead><tr><th>Bucket</th><th class="text-end">Today</th><th class="text-end">Monthly</th><th class="text-end">Growth</th><th class="text-end">At Retirement</th></tr></thead>
+          <thead><tr><th>Bucket</th><th class="text-end">Today</th><th class="text-end">Lump Sum Growth</th><th class="text-end">Monthly</th><th class="text-end">Monthly Growth</th><th class="text-end">At Retirement</th></tr></thead>
           <tbody>
           {% for row in r.investment_breakdown %}
             <tr>
               <td>{{ row.label }}</td>
               <td class="text-end">{{ row.current | inr }}</td>
-              <td class="text-end">{{ (row.monthly | inr) if row.monthly else '–' }}</td>
               <td class="text-end">{{ '%.1f'|format(row.growth_pct) }}%</td>
+              <td class="text-end">{{ (row.monthly | inr) if row.monthly else '–' }}</td>
+              <td class="text-end">{{ ('%.1f'|format(row.monthly_growth_pct) ~ '%') if row.monthly else '–' }}</td>
               <td class="text-end">{{ row.future | inr }}</td>
             </tr>
           {% endfor %}
             <tr class="table-secondary fw-bold">
-              <td>Total</td><td></td><td></td><td></td>
+              <td>Total</td><td></td><td></td><td></td><td></td>
               <td class="text-end">{{ r.total_fv_investments | inr }}</td>
             </tr>
           </tbody>
@@ -127,11 +133,59 @@
         <div class="hint" style="font-size:0.8rem;color:#8a94a3;">
           Current annual passive income of {{ r.passive_income | inr }} is projected to grow at {{ '%.1f'|format(r.passive_growth_pct) }}%/yr to
           {{ r.passive_at_retirement | inr }} in your first year of retirement.
-          {% if r.pension_annual %}Plus a pension/other retirement income of {{ r.pension_annual | inr }}, starting fresh in your first year of retirement and growing at the same rate.{% endif %}
+          {% if r.pension_annual %}Plus a pension/other retirement income of {{ r.pension_annual | inr }}, starting fresh in your first year of retirement (not before) and growing at {{ '%.1f'|format(r.pension_growth_pct) }}%/yr after that.{% endif %}
           Together with that year's FD interest, these make up your post-retirement income, offsetting that year's living expenses directly (shown in the chart below), rather than being compounded as a lump sum.
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <div class="section-title">Immovable Assets (Not Counted Toward Corpus)</div>
+        <table class="table table-sm mb-2">
+          <tbody>
+            <tr><td>Real Estate today</td><td class="text-end">{{ r.real_estate_value | inr }}</td></tr>
+            <tr><td>Growth rate</td><td class="text-end">{{ '%.1f'|format(r.real_estate_growth_pct) }}%/yr</td></tr>
+            <tr class="table-secondary fw-bold"><td>Projected value at retirement (age {{ r.retire_age }})</td><td class="text-end">{{ r.fv_real_estate | inr }}</td></tr>
+          </tbody>
+        </table>
+        <div class="hint" style="font-size:0.8rem;color:#8a94a3;">
+          Shown for reference only - real estate isn't something you'd typically sell to fund retirement income, so this figure is deliberately excluded from your investment total and does not affect the shortfall/surplus above.
+        </div>
+      </div>
+    </div>
+
+    {% if r.shortfall > 0 %}
+    <div class="col-lg-6">
+      <div class="card p-4 h-100">
+        <div class="section-title">Can Extra Monthly Savings Close the Gap?</div>
+        <table class="table table-sm mb-2">
+          <tbody>
+            <tr><td>Current monthly income</td><td class="text-end">{{ r.monthly_income | inr }}</td></tr>
+            <tr><td>− Monthly EMI</td><td class="text-end">{{ r.monthly_emi | inr }}</td></tr>
+            <tr><td>− Current Monthly SIP + Other Savings</td><td class="text-end">{{ r.gross_total_monthly | inr }}</td></tr>
+            <tr class="table-secondary fw-bold"><td>= Remaining monthly income</td><td class="text-end">{{ r.remaining_monthly_income | inr }}</td></tr>
+          </tbody>
+        </table>
+        {% if r.extra_investable_monthly > 0 %}
+        <div class="hint mb-2" style="font-size:0.85rem;color:#5a6472;">
+          Investing this remaining {{ r.extra_investable_monthly | inr }}/mo from now to retirement, even at an aggressive {{ '%.0f'|format(r.best_case_growth_pct) }}%/yr best-case return, would add about {{ r.hypothetical_extra_fv | inr }} to your corpus.
+        </div>
+        {% endif %}
+        {% if r.extra_savings_not_enough %}
+        <div class="alert alert-warning py-2 px-3 mb-0" style="font-size:0.9rem;">
+          Even with that extra savings at a best-case {{ '%.0f'|format(r.best_case_growth_pct) }}%/yr return, you'd still be short by about {{ r.shortfall_after_extra | inr }}. Saving more alone may not close this gap - consider looking into additional passive income sources, or reducing your monthly expenses post-retirement.
+        </div>
+        {% else %}
+        <div class="alert alert-success py-2 px-3 mb-0" style="font-size:0.9rem;">
+          Investing that remaining income at {{ '%.0f'|format(r.best_case_growth_pct) }}%/yr would be enough to close your projected shortfall.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
   </div>
 
   <div class="card p-4 mb-4">
